@@ -30,7 +30,7 @@ class Server:
     else:
         temp = url[(http_pos+3):] # get the rest of url
 
-    # port_pos = temp.find(":") # find the port pos (if any)
+    port_pos = temp.find(":") # find the port pos (if any)
 
     # find end of web server
     webserver_pos = temp.find("/")
