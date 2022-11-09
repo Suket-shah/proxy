@@ -2,89 +2,93 @@ import socket
 import threading
 import sys
 
-# this probably needs to change to be the http port #
+# can't cache across different test cases.
+# but, you can cache within the same test case for the image. 
 
-MAX_REQUEST_LEN=1080
-CONECTION_TIMEOUT=1000
+# MAX_REQUEST_LEN=1080
+# CONECTION_TIMEOUT=100
 SERVER = socket.gethostbyname(socket.gethostname())
 FORMAT='utf-8'
+URL_OFFSET = 3
 
-class Server:
-  def __init__(self, hostname, bind_port, img_flg, attack_flg) -> None:
-    self.img_flg = img_flg
-    self.attack_flg = attack_flg
-    self.serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    self.serverSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    self.serverSocket.bind((hostname, bind_port))
-    self.serverSocket.listen()
-    self.start_socket()
+def start_socket(port):
+  try: 
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind((SERVER, port))
+    sock.listen(100)
+  except Exception:
+    print("Socket was unable to be initialized")
+    print(Exception)
   
-  # TODO remove unecessary checkings from gfg
-  def handle_client(self, conn, addr):
-    print(f"new thread, {conn} and {addr}")
-    request = conn.recv(MAX_REQUEST_LEN).decode(FORMAT)
-    first_line = request.split('/n')[0]
-    print('first_line', first_line)
-    url = first_line.split(' ')[1]
-    print('url', url)
-    http_pos = url.find("://") # find pos of ://
-    if (http_pos==-1):
-        temp = url
-    else:
-        temp = url[(http_pos+3):] # get the rest of url
-
-    port_pos = temp.find(":") # find the port pos (if any)
-
-    # find end of web server
-    webserver_pos = temp.find("/")
-    if webserver_pos == -1:
-        webserver_pos = len(temp)
-
-    webserver = ""
-    port = -1
-    if (port_pos==-1 or webserver_pos < port_pos): 
-
-        # default port 
-        port = 80 
-        webserver = temp[:webserver_pos] 
-
-    else: # specific port 
-        port = int((temp[(port_pos+1):])[:webserver_pos-port_pos-1])
-        webserver = temp[:port_pos]
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
-    s.settimeout(CONECTION_TIMEOUT)
-    print(f"webserver is {webserver}")
-    print(f"temp is {temp}")
-    s.connect((webserver, port))
-    s.sendall(request.encode(encoding=FORMAT))
-    while 1:
-    # receive data from web server
-      data = s.recv(MAX_REQUEST_LEN)
-      # manipulate images if needed 
-      print(f"data is {data}")
-      if (len(data) > 0):
-          conn.send(data) # send to browser/client
-      else:
-          break
-
-
-  def start_socket(self):
-    while True:
-      print(f"starting")
-      conn, addr = self.serverSocket.accept()
-      print("accepted address")
-      thread = threading.Thread(target=self.handle_client, args=(conn, addr), daemon=True)
+  while True:
+    try:
+      conn, addr = sock.accept()
+      data = conn.recv(5000).decode(FORMAT)
+      thread = threading.Thread(target=handle_client, args=(conn, addr, data), daemon=True)
       thread.start()
+    except KeyboardInterrupt:
+      sock.close()
+      print("Shutting down")
+      sys.exit(1)
+
+def handle_client(conn, addr, data):
+  if data.find("GET") == -1 or data.find("favicon") != -1:
+    return
+  print(f"starting thread with addr {addr}")
+  url = data.split('\n')[0].split(' ')[1]
+  http_pos = url.find("://")
+  temp = url[(URL_OFFSET+http_pos):]
+  server = ""
+  port = -1
+  port_position = temp.find(":") # find the port pos (if any)
+  web_position = temp.find("/")
+  if web_position == -1:
+      web_position = len(temp)
+  if (port_position==-1 or web_position < port_position): 
+    port = 80 
+    server = temp[:web_position] 
+  else: # specific port 
+    port = int((temp[(port_position+1):])[:web_position-port_position-1])
+    server = temp[:port_position]
+  print('address is ', temp)
+  print('server is ', server)
+  # now create proxy and send data back
+  try:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((server, port))
+    sock.send(data.encode(encoding=FORMAT))
+    fail_ct = 0
+    while 1:
+      reply = sock.recv(5000)
+      if len(reply) > 0:
+        print("we have sent reply")
+        conn.sendall(reply)
+        fail_ct = 0
+      elif len(reply) <= 0 and fail_ct < 2:
+        fail_ct += 1
+      else:
+        print("we are breaking")
+        break
+    sock.close()
+    conn.close()
+  except socket.error:
+    sock.close()
+    conn.close()
+    print(sock.error)
+    sys.exit(1)
+  pass
 
 if __name__ == '__main__':
   arguments = sys.argv[1:]
   port = 5050
   image_flg = 0
   attack_flg = 0
-  if len(arguments) > 1:
+  if len(arguments) > 0:
     port = arguments[0]
+  if len(arguments) > 1:
     image_flg = arguments[1]
+  if len(arguments) > 2:
     attack_flg = arguments[2]
+  print(f"Listening to port {port}")
+  start_socket(port)
 
-  serve = Server(SERVER, port, image_flg, attack_flg)
-  serve.start_socket()
