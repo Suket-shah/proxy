@@ -4,8 +4,9 @@ import threading
 
 HOST = socket.gethostbyname(socket.gethostname())
 FORMAT = 'utf-8'
-BUFFER_SIZE = 4096
+BUFFER_SIZE = 8192
 URL_OFFSET = 3
+CHANGE_URL = 'http://ocna0.d2.comp.nus.edu.sg:50000/change.jpg'
 
 
 def start_socket(port, image_flag, attack_flag):
@@ -59,18 +60,27 @@ def proxy_connect(conn, data, addr):
     port_pos = url.find(':')
     server_pos = url.find('/')
     if server_pos == -1:
-        server = len(url)
-    server = url[:port_pos]
-    pre_port = url[(port_pos+1):]
-    port = int(pre_port[:server_pos-port_pos-1])
+        server_pos = len(url)
+    if(port_pos == -1):
+        port = 80
+        server = url[:server_pos]
+    else:
+        pre_port = url[(port_pos+1):]
+        print('pre_port ', pre_port[:server_pos-port_pos-1])
+        port = int(pre_port[:server_pos-port_pos-1])
+        server = url[:port_pos]
     print('req_server', server)
     print('req_port', port)
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as second_sock:
+            print("socket has not connected")
             second_sock.connect((server, port))
-            second_sock.sendall(data.encode(FORMAT)) # should this be encoded in utf-8?
+            print("second sock connected")
+            second_sock.sendall(data) # should this be encoded in utf-8?
+            print("data sent through second sock")
             while True:
                 sock_reply = second_sock.recv(BUFFER_SIZE)
+                print("data received from second sock")
                 if len(sock_reply) > 0:
                     conn.send(sock_reply)
                 else:
