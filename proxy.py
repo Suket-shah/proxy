@@ -39,19 +39,31 @@ def start_socket(port, image_flag, attack_flag):
                     conn.close()
                 else: 
                     data = conn.recv(BUFFER_SIZE)
-                    thread = threading.Thread(target=proxy_connect, args=(conn, data, addr))
+                    thread = threading.Thread(target=proxy_connect, args=(conn, data, addr, image_flag))
                     thread.start()
             except KeyboardInterrupt:
                 sock.close()
                 print("Closing socket")
                 sys.exit(1)
 
-def proxy_connect(conn, data, addr):
+def proxy_connect(conn, data, addr, image_flag):
+    print("the data is, ", data)
     if data.find(b"GET") == -1:
         print("invalid request")
         return
     decoded_data = data.decode(FORMAT)
     url = decoded_data.split('\n')[0].split(' ')[1]
+    print('this is the url, ', url)
+    if image_flag and (url.find('jpg') != -1 or url.find('jpeg') != -1 or url.find('png') != -1):
+        print("we are now subbing the image")
+        url = 'http://ocna0.d2.comp.nus.edu.sg:50000/change.jpg'
+        line_split_data = decoded_data.split('\n')
+        split_decode_url = line_split_data[0].split(' ') 
+        split_decode_url[1] = url
+        joint_img_url = " ".join(split_decode_url)
+        line_split_data[0] = joint_img_url
+        print("line_split_data is ", line_split_data)
+        data = "\n".join(line_split_data).encode(FORMAT)
     http_pos = url.find('://')
     if http_pos != -1:
         url = url[(URL_OFFSET+http_pos):]
