@@ -45,7 +45,7 @@ def start_socket(port, image_flag, attack_flag):
 
             except KeyboardInterrupt:
                 sock.close()
-                print("Closing socket")
+                print("Keyboard interrupt detected, closing socket.")
                 sys.exit(1)
 
 def proxy_connect(conn, data, addr, image_flag, total_bytes):
